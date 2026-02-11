@@ -1,0 +1,3 @@
+[submodule "fuzzer/LibAFL"]
+	path = Engine/LibAFL
+	url = https://github.com/AFLplusplus/LibAFL.git
