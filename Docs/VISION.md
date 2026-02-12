@@ -116,7 +116,7 @@ The Rust component is responsible for:
 4. **Corpus Management**: Maintaining and evolving the corpus of interesting inputs
 5. **C Interface Exposure**: Providing C-compatible functions that the C++ layer can call
 
-### C++ Library (Wrapper & Router)
+### C++ Library (Core Driver)
 
 The C++ component is responsible for:
 
@@ -203,20 +203,6 @@ In no_std environments, PeelFuzz operates without the C++ standard library:
 - Bare-metal firmware fuzzing
 - Safety-critical systems where standard library is prohibited
 - Bootloader and driver fuzzing
-
-### Compatibility Considerations
-
-The C++ library uses conditional compilation to support both modes:
-
-```cpp
-#ifdef __STDC_HOSTED__
-  // std mode: use standard library features
-#else
-  // no_std mode: use custom implementations
-#endif
-```
-
-This allows the same fuzzing infrastructure to work across vastly different C++ environments.
 
 ## Design Rationale
 
