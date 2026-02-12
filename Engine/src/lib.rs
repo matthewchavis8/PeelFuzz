@@ -15,8 +15,9 @@ use std::path::PathBuf;
 
 #[cfg(feature = "std")]
 use libafl::{
+    corpus::Corpus,
     corpus::{InMemoryCorpus, OnDiskCorpus},
-    executors::{inprocess::InProcessExecutor, ExitKind},
+    executors::{ExitKind, inprocess::InProcessExecutor},
     feedbacks::{CrashFeedback, MaxMapFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     generators::RandBytesGenerator,
@@ -25,16 +26,11 @@ use libafl::{
     observers::StdMapObserver,
     schedulers::QueueScheduler,
     stages::mutational::StdMutationalStage,
-    corpus::Corpus,
     state::{HasCorpus, StdState},
 };
 
 #[cfg(feature = "std")]
-use libafl_bolts::{
-    current_nanos,
-    rands::StdRand,
-    tuples::tuple_list,
-};
+use libafl_bolts::{current_nanos, rands::StdRand, tuples::tuple_list};
 
 #[cfg(feature = "std")]
 use core::num::NonZero;

@@ -28,10 +28,7 @@ pub unsafe fn reset_coverage() {
 /// Called once at startup by the sanitizer runtime.
 /// Assigns each guard a unique index into our coverage map.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn __sanitizer_cov_trace_pc_guard_init(
-    mut start: *mut u32,
-    stop: *mut u32,
-) {
+pub unsafe extern "C" fn __sanitizer_cov_trace_pc_guard_init(mut start: *mut u32, stop: *mut u32) {
     // Ensure the coverage map is ready before any guard callbacks fire.
     if SIGNALS_PTR.is_null() {
         init_coverage();

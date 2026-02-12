@@ -11,3 +11,5 @@ default:
 	$(CXX) $(CXXFLAGS) bug1.cpp -o bug1 \
 	  $(DRIVER_LIB) $(RUST_LIB) -pthread -ldl -lm
 
+run:
+	./bug1
