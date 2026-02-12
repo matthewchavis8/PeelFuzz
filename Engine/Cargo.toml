@@ -1,6 +1,16 @@
 [package]
-name = "fuzzer"
+name = "PeelFuzz"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["staticlib"]
+
+[features]
+default = ["std"]
+std = ["libafl/std", "libafl_bolts/std", "libafl_bolts/serdeany_autoreg"]
+tui = ["std", "libafl/tui_monitor"]
+
 [dependencies]
+libafl = { version = "0.15.4", default-features = false }
+libafl_bolts = { version = "0.15.4", default-features = false }
