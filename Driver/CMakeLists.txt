@@ -1,9 +1,6 @@
-add_library(driver 
-  STATIC 
+add_library(driver
+  OBJECT
   fuzzer.cpp
 )
 
-target_link_libraries(driver
-  PRIVATE
-  "${CMAKE_SOURCE_DIR}/Engine/target/release/libPeelFuzz.a"
-)
+target_include_directories(driver PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

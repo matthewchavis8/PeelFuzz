@@ -48,6 +48,14 @@ impl PeelFuzzConfig {
         }
     }
 
+    pub fn core_count_or_default(&self) -> usize {
+        if self.core_count == 0 {
+            1
+        } else {
+            self.core_count as usize
+        }
+    }
+
     pub fn crash_dir_or_default(&self) -> String {
         if self.crash_dir.is_null() {
             "./crashes".to_string()
