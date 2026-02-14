@@ -1,6 +1,7 @@
 //! PeelFuzz Engine - LibAFL-based fuzzing library for C/C++ targets
 //!
-//! Provides a C ABI for integrating LibAFL fuzzing into native applications.
+//! Provides a C ABI for integrating LibAFL fuzzing into native applications,
+//! and a Rust-side `PeelFuzzer` builder for ergonomic configuration.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(dead_code)]
@@ -8,88 +9,103 @@
 pub mod sanitizer_coverage;
 
 #[cfg(feature = "std")]
-mod targets;
+pub mod config;
+#[cfg(feature = "std")]
+mod engine;
+#[cfg(feature = "std")]
+mod harness;
+#[cfg(feature = "std")]
+mod monitors;
+#[cfg(feature = "std")]
+mod schedulers;
+#[cfg(feature = "std")]
+pub mod targets;
 
 #[cfg(feature = "std")]
-use std::path::PathBuf;
+pub use engine::PeelFuzzer;
 
 #[cfg(feature = "std")]
-use libafl::{
-    corpus::Corpus,
-    corpus::{InMemoryCorpus, OnDiskCorpus},
-    executors::{ExitKind, inprocess::InProcessExecutor},
-    feedbacks::{CrashFeedback, MaxMapFeedback},
-    fuzzer::{Fuzzer, StdFuzzer},
-    generators::RandBytesGenerator,
-    inputs::BytesInput,
-    mutators::{havoc_mutations::havoc_mutations, scheduled::HavocScheduledMutator},
-    observers::StdMapObserver,
-    schedulers::QueueScheduler,
-    stages::mutational::StdMutationalStage,
-    state::{HasCorpus, StdState},
-};
+use std::time::Duration;
 
 #[cfg(feature = "std")]
-use libafl_bolts::{current_nanos, rands::StdRand, tuples::tuple_list};
+use config::{HarnessType, PeelFuzzConfig, SchedulerType};
 
+/// Main entry point: run the fuzzer with a full config struct.
 #[cfg(feature = "std")]
-use core::num::NonZero;
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
+    unsafe {
+        let cfg = &*config;
+        let timeout = Duration::from_millis(cfg.timeout_ms_or_default());
+        let crash_dir = cfg.crash_dir_or_default();
+        let seed_count = cfg.seed_count_or_default();
 
-use sanitizer_coverage::{MAP_SIZE, SIGNALS_PTR};
-
-/// Shared fuzzer engine. Takes a harness and runs the full LibAFL pipeline.
-/// New fuzz_* entry points only need to build a harness and pass it here.
-#[cfg(feature = "std")]
-unsafe fn run_fuzzer(mut harness: impl FnMut(&BytesInput) -> ExitKind) {
-    if SIGNALS_PTR.is_null() {
-        sanitizer_coverage::init_coverage();
+        match cfg.harness_type {
+            HarnessType::ByteSize => {
+                let target_fn: targets::CTargetFn = core::mem::transmute(cfg.target_fn);
+                let h = harness::bytes_harness(target_fn);
+                build_and_run(
+                    h,
+                    cfg.scheduler_type,
+                    timeout,
+                    &crash_dir,
+                    seed_count,
+                    cfg.use_tui,
+                );
+            }
+            HarnessType::String => {
+                let target_fn: targets::CTargetStringFn = core::mem::transmute(cfg.target_fn);
+                let h = harness::string_harness(target_fn);
+                build_and_run(
+                    h,
+                    cfg.scheduler_type,
+                    timeout,
+                    &crash_dir,
+                    seed_count,
+                    cfg.use_tui,
+                );
+            }
+        }
     }
-
-    let observer = StdMapObserver::from_mut_ptr("signals", SIGNALS_PTR, MAP_SIZE);
-    let mut feedback = MaxMapFeedback::new(&observer);
-    let mut objective = CrashFeedback::new();
-
-    let mut state = StdState::new(
-        StdRand::with_seed(current_nanos()),
-        InMemoryCorpus::new(),
-        OnDiskCorpus::new(PathBuf::from("./crashes")).unwrap(),
-        &mut feedback,
-        &mut objective,
-    )
-    .unwrap();
-
-    let mon = libafl::monitors::SimpleMonitor::new(|s| println!("{s}"));
-    let mut mgr = libafl::events::SimpleEventManager::new(mon);
-    let scheduler = QueueScheduler::new();
-    let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
-
-    let mut executor = InProcessExecutor::new(
-        &mut harness,
-        tuple_list!(observer),
-        &mut fuzzer,
-        &mut state,
-        &mut mgr,
-    )
-    .unwrap();
-
-    if state.corpus().count() == 0 {
-        let mut generator = RandBytesGenerator::new(NonZero::new(32).unwrap());
-        state
-            .generate_initial_inputs(&mut fuzzer, &mut executor, &mut generator, &mut mgr, 8)
-            .unwrap();
-    }
-
-    let mutator = HavocScheduledMutator::new(havoc_mutations());
-    let mut stages = tuple_list!(StdMutationalStage::new(mutator));
-
-    fuzzer
-        .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
-        .unwrap();
 }
 
-/// Fuzz a C target that takes a byte buffer and its length.
+#[cfg(feature = "std")]
+unsafe fn build_and_run(
+    harness: impl FnMut(&libafl::inputs::BytesInput) -> libafl::executors::ExitKind,
+    scheduler_type: SchedulerType,
+    timeout: Duration,
+    crash_dir: &str,
+    seed_count: usize,
+    use_tui: bool,
+) {
+    let mut builder = PeelFuzzer::new(harness)
+        .scheduler(scheduler_type)
+        .timeout(timeout)
+        .crash_dir(crash_dir)
+        .seed_count(seed_count);
+
+    if use_tui {
+        builder = builder.use_tui();
+    }
+
+    unsafe { builder.run() };
+}
+
+/// Backwards-compatible entry point: fuzz a C target that takes a byte buffer and its length.
 #[cfg(feature = "std")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fuzz_byte_size(target_fn: targets::CTargetFn) {
-    run_fuzzer(targets::bytes_harness(target_fn));
+    unsafe {
+        let config = PeelFuzzConfig {
+            harness_type: HarnessType::ByteSize,
+            target_fn: target_fn as *const core::ffi::c_void,
+            scheduler_type: SchedulerType::Queue,
+            timeout_ms: 0,
+            crash_dir: core::ptr::null(),
+            seed_count: 0,
+            core_count: 0,
+            use_tui: false,
+        };
+        peel_fuzz_run(&config);
+    }
 }

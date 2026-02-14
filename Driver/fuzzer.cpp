@@ -11,7 +11,6 @@ static void wrapper(const uint8_t* data, size_t len) {
   }
   std::memcpy(&input, data, sizeof(int));
 
-  std::cout << "Sending " << data << '\n';
   target_fn(input);
 }
 
