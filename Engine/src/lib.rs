@@ -101,6 +101,11 @@ unsafe fn build_and_run(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fuzz_byte_size(target_fn: targets::CTargetFn) {
     unsafe {
+        // Detect all available CPU cores, fallback to 1 if detection fails
+        let detected_cores = std::thread::available_parallelism()
+            .map(|n| n.get() as u32)
+            .unwrap_or(1);
+
         let config = PeelFuzzConfig {
             harness_type: HarnessType::ByteSize,
             target_fn: target_fn as *const core::ffi::c_void,
@@ -108,8 +113,8 @@ pub unsafe extern "C" fn fuzz_byte_size(target_fn: targets::CTargetFn) {
             timeout_ms: 0,
             crash_dir: core::ptr::null(),
             seed_count: 0,
-            core_count: 0,
-            use_tui: false,
+            core_count: detected_cores,
+            use_tui: true,
         };
         peel_fuzz_run(&config);
     }

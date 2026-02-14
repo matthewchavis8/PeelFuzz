@@ -83,27 +83,6 @@ This produces `Release/libPeelFuzz.a` containing:
 
 ## Workflow
 
-### Level 1: Basic Usage
-
-Write a C++ target function and fuzz it:
-
-```cpp
-#include "Driver/fuzzer.h"
-
-void my_target(const uint8_t* data, size_t size) {
-    // Your code to fuzz
-    if (size >= 4 && data[0] == 'B' && data[1] == 'U' &&
-        data[2] == 'G' && data[3] == '!') {
-        // Trigger a crash to test fuzzer
-        int* p = nullptr;
-        *p = 42;
-    }
-}
-
-int main() {
-    fuzz_byte_size(my_target);
-    return 0;
-}
 ```
 
 Compile with **required** coverage instrumentation:
@@ -116,14 +95,7 @@ clang++ -std=c++17 \
   -LRelease -lPeelFuzz -lpthread -ldl -lm
 ```
 
-Run the fuzzer:
-
-```bash
-./fuzzer
-```
-
-### Level 2: Advanced Configuration with `peel_fuzz_run`
-
+### Configuring and running the fuzzer
 For full control over the fuzzer, use the `peel_fuzz_run` C API with a `PeelFuzzConfig` struct:
 
 ```cpp
@@ -178,107 +150,7 @@ PeelFuzz supports parallel fuzzing across multiple CPU cores using LibAFL's fork
 
 Each child process gets its own coverage map (copy-on-write after `fork()`), and corpus entries are automatically shared between instances via LLMP shared memory.
 
-### Level 3: Extending Rust Harnesses
-
-For custom input handling or structured fuzzing, extend the harness functions in `Engine/src/harness.rs`:
-
-```rust
-/// Example: Harness for structured input
-pub fn structured_harness(target_fn: CTargetFn) -> impl FnMut(&BytesInput) -> ExitKind {
-    move |input: &BytesInput| {
-        let target = input.target_bytes();
-        let buf = target.as_slice();
-
-        // Add custom preprocessing here
-        let processed = preprocess_input(buf);
-
-        unsafe {
-            reset_coverage();
-            target_fn(processed.as_ptr(), processed.len());
-        }
-
-        ExitKind::Ok
-    }
-}
 ```
-
-### Level 4: Creating C++ Wrappers
-
-Add convenience wrappers in the Driver layer for common patterns. For example, `Driver/fuzzer.h` includes `fuzz_wrap()` that adapts integer-based targets:
-
-```cpp
-typedef void(*wrapFn)(int input);
-
-void fuzz_wrap(wrapFn target) {
-    auto adapter = [target](const uint8_t* data, size_t len) {
-        if (len >= sizeof(int)) {
-            int value;
-            std::memcpy(&value, data, sizeof(int));
-            target(value);
-        }
-    };
-    fuzz_byte_size(adapter);
-}
-```
-
-## Usage Examples
-
-### Complete Example: Examples/Bug1
-
-The Bug1 example demonstrates a multi-gate fuzzing target with complex constraints. It shows:
-
-- Header parsing with magic values
-- CRC and checksum validation
-- Multiple execution paths (version 1, 2, 3)
-- Arithmetic constraints and cryptographic checks
-
-**Build and run**:
-
-```bash
-# Build PeelFuzz first
-cmake --preset=Release
-cmake --build Release
-
-# Build and run the example
-cd Examples/Bug1/
-make
-./bug1
-```
-
-**Compilation flags** (from `makefile`):
-
-```makefile
-CXXFLAGS=-std=c++17 -O1 -g -fno-omit-frame-pointer \
-  -fsanitize=fuzzer-no-link \
-  -fsanitize-coverage=trace-pc-guard
-```
-
-The `-fsanitize-coverage=trace-pc-guard` flag is **mandatory** for coverage feedback.
-
-### Simple Example
-
-```cpp
-#include <cstring>
-#include "Driver/fuzzer.h"
-
-// Fuzz a simple parsing function
-void parse_command(const uint8_t* data, size_t len) {
-    if (len < 4) return;
-
-    if (data[0] == 'C' && data[1] == 'M' &&
-        data[2] == 'D' && data[3] == ':') {
-        // Process command
-        uint8_t cmd_type = data[4];
-        // ... handle different command types
-    }
-}
-
-int main() {
-    fuzz_byte_size(parse_command);
-    return 0;
-}
-```
-
 Compile:
 
 ```bash
@@ -301,24 +173,7 @@ Key architectural points:
 
 ## API Reference
 
-### C API (from Driver/fuzzer.h)
 
-```c
-// Simple entry point — fuzz a byte buffer target with default settings
-typedef void(*CTargetFn)(const uint8_t* data, size_t len);
-void fuzz_byte_size(CTargetFn target_fn);
-
-// Convenience wrapper for integer-input targets
-typedef void(*wrapFn)(int input);
-void fuzz_wrap(wrapFn target);
-```
-
-### Advanced C API (from Engine)
-
-```c
-// Full configuration entry point
-void peel_fuzz_run(const PeelFuzzConfig* config);
-```
 
 See the `PeelFuzzConfig` struct fields:
 

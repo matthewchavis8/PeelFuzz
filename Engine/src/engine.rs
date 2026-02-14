@@ -264,7 +264,7 @@ macro_rules! run_engine {
         use libafl::{
             corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
             events::SimpleEventManager,
-            feedbacks::{CrashFeedback, EagerOrFeedback, MaxMapFeedback, TimeFeedback},
+            feedbacks::{CrashFeedback, EagerOrFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
             fuzzer::{Fuzzer, StdFuzzer},
             generators::RandBytesGenerator,
             mutators::{havoc_mutations::havoc_mutations, scheduled::HavocScheduledMutator},
@@ -288,7 +288,11 @@ macro_rules! run_engine {
                 MaxMapFeedback::new(&$observer),
                 TimeFeedback::new(&time_observer),
             );
-            let mut objective = CrashFeedback::new();
+            // Treat both crashes and timeouts as objectives
+            let mut objective = EagerOrFeedback::new(
+                CrashFeedback::new(),
+                TimeoutFeedback::new(),
+            );
 
             let mut $state = StdState::new(
                 StdRand::with_seed(current_nanos()),
@@ -359,7 +363,7 @@ macro_rules! run_engine_multicore {
         use libafl::{
             corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
             events::{EventConfig, launcher::Launcher},
-            feedbacks::{CrashFeedback, EagerOrFeedback, MaxMapFeedback, TimeFeedback},
+            feedbacks::{CrashFeedback, EagerOrFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
             fuzzer::{Fuzzer, StdFuzzer},
             generators::RandBytesGenerator,
             mutators::{havoc_mutations::havoc_mutations, scheduled::HavocScheduledMutator},
@@ -403,7 +407,11 @@ macro_rules! run_engine_multicore {
                         MaxMapFeedback::new(&$observer),
                         TimeFeedback::new(&time_observer),
                     );
-                    let mut objective = CrashFeedback::new();
+                    // Treat both crashes and timeouts as objectives
+                    let mut objective = EagerOrFeedback::new(
+                        CrashFeedback::new(),
+                        TimeoutFeedback::new(),
+                    );
 
                     let mut $state = StdState::new(
                         StdRand::with_seed(current_nanos()),
