@@ -39,6 +39,7 @@ pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
         let timeout = Duration::from_millis(cfg.timeout_ms_or_default());
         let crash_dir = cfg.crash_dir_or_default();
         let seed_count = cfg.seed_count_or_default();
+        let core_count = cfg.core_count_or_default();
 
         match cfg.harness_type {
             HarnessType::ByteSize => {
@@ -50,6 +51,7 @@ pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
                     timeout,
                     &crash_dir,
                     seed_count,
+                    core_count,
                     cfg.use_tui,
                 );
             }
@@ -62,6 +64,7 @@ pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
                     timeout,
                     &crash_dir,
                     seed_count,
+                    core_count,
                     cfg.use_tui,
                 );
             }
@@ -76,13 +79,15 @@ unsafe fn build_and_run(
     timeout: Duration,
     crash_dir: &str,
     seed_count: usize,
+    core_count: usize,
     use_tui: bool,
 ) {
     let mut builder = PeelFuzzer::new(harness)
         .scheduler(scheduler_type)
         .timeout(timeout)
         .crash_dir(crash_dir)
-        .seed_count(seed_count);
+        .seed_count(seed_count)
+        .core_count(core_count);
 
     if use_tui {
         builder = builder.use_tui();

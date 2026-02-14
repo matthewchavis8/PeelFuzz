@@ -1,14 +1,19 @@
 /// Monitor creation and dispatch.
-use std::time::Instant;
-
 use libafl::monitors::SimpleMonitor;
 
-/// Create a `SimpleMonitor` that throttles output to at most once per second.
-pub fn throttled_simple_monitor() -> SimpleMonitor<impl FnMut(&str)> {
-    let mut last_print = Instant::now();
-    SimpleMonitor::new(move |s| {
-        println!("{s}");
-    })
+/// Create a `SimpleMonitor` with console output.
+pub fn simple_monitor() -> SimpleMonitor<fn(&str)> {
+    SimpleMonitor::new(print_status as fn(&str))
+}
+
+/// Create a `MultiMonitor` for multi-core fuzzing (implements Clone).
+#[cfg(feature = "fork")]
+pub fn multi_monitor() -> libafl::monitors::MultiMonitor<fn(&str)> {
+    libafl::monitors::MultiMonitor::new(print_status as fn(&str))
+}
+
+fn print_status(s: &str) {
+    println!("{s}");
 }
 
 /// Create a `TuiMonitor` (requires `tui` feature).
