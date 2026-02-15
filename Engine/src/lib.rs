@@ -4,7 +4,6 @@
 //! and a Rust-side `PeelFuzzer` builder for ergonomic configuration.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(dead_code)]
 
 pub mod sanitizer_coverage;
 
@@ -52,7 +51,6 @@ pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
                     &crash_dir,
                     seed_count,
                     core_count,
-                    cfg.use_tui,
                 );
             }
             HarnessType::String => {
@@ -65,7 +63,6 @@ pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
                     &crash_dir,
                     seed_count,
                     core_count,
-                    cfg.use_tui,
                 );
             }
         }
@@ -80,42 +77,13 @@ unsafe fn build_and_run(
     crash_dir: &str,
     seed_count: usize,
     core_count: usize,
-    use_tui: bool,
 ) {
-    let mut builder = PeelFuzzer::new(harness)
+    let builder = PeelFuzzer::new(harness)
         .scheduler(scheduler_type)
         .timeout(timeout)
         .crash_dir(crash_dir)
         .seed_count(seed_count)
         .core_count(core_count);
 
-    if use_tui {
-        builder = builder.use_tui();
-    }
-
     unsafe { builder.run() };
-}
-
-/// Backwards-compatible entry point: fuzz a C target that takes a byte buffer and its length.
-#[cfg(feature = "std")]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn fuzz_byte_size(target_fn: targets::CTargetFn) {
-    unsafe {
-        // Detect all available CPU cores, fallback to 1 if detection fails
-        let detected_cores = std::thread::available_parallelism()
-            .map(|n| n.get() as u32)
-            .unwrap_or(1);
-
-        let config = PeelFuzzConfig {
-            harness_type: HarnessType::ByteSize,
-            target_fn: target_fn as *const core::ffi::c_void,
-            scheduler_type: SchedulerType::Queue,
-            timeout_ms: 0,
-            crash_dir: core::ptr::null(),
-            seed_count: 0,
-            core_count: detected_cores,
-            use_tui: true,
-        };
-        peel_fuzz_run(&config);
-    }
 }

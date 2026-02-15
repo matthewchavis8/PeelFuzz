@@ -25,10 +25,8 @@ pub struct PeelFuzzConfig {
     pub crash_dir: *const i8,
     /// Number of initial seed inputs. 0 = default (8).
     pub seed_count: u32,
-    /// Number of cores for parallel fuzzing. 0 = single core.
+    /// Number of cores for parallel fuzzing. 0 = auto-detect (all available cores).
     pub core_count: u32,
-    /// Whether to use the TUI monitor instead of console output.
-    pub use_tui: bool,
 }
 
 impl PeelFuzzConfig {
@@ -50,7 +48,9 @@ impl PeelFuzzConfig {
 
     pub fn core_count_or_default(&self) -> usize {
         if self.core_count == 0 {
-            1
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1)
         } else {
             self.core_count as usize
         }

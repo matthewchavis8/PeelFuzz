@@ -15,13 +15,3 @@ pub fn multi_monitor() -> libafl::monitors::MultiMonitor<fn(&str)> {
 fn print_status(s: &str) {
     println!("{s}");
 }
-
-/// Create a `TuiMonitor` (requires `tui` feature).
-#[cfg(feature = "tui")]
-pub fn tui_monitor() -> libafl::monitors::TuiMonitor {
-    libafl::monitors::TuiMonitor::builder()
-        .title("PeelFuzz")
-        .version(env!("CARGO_PKG_VERSION"))
-        .enhanced_graphics(true)
-        .build()
-}
