@@ -36,19 +36,15 @@ add_custom_target(rust_engine DEPENDS ${RUST_LIB})
 # --- C++ Driver (object library) ---
 add_subdirectory(Driver)
 
-# --- Merge into single libPeelFuzz.a ---
+# --- Copy Rust library as final libPeelFuzz.a ---
+# (Driver is header-only, no objects to merge)
 set(MERGED_LIB "${CMAKE_BINARY_DIR}/libPeelFuzz.a")
-set(RUST_EXTRACT_DIR "${CMAKE_BINARY_DIR}/_rust_objs")
 
 add_custom_command(
   OUTPUT ${MERGED_LIB}
-  COMMAND ${CMAKE_COMMAND} -E rm -rf "${RUST_EXTRACT_DIR}"
-  COMMAND ${CMAKE_COMMAND} -E make_directory "${RUST_EXTRACT_DIR}"
-  COMMAND ${CMAKE_COMMAND} -E chdir "${RUST_EXTRACT_DIR}" ar x "${RUST_LIB}"
-  COMMAND sh -c "ar crs ${MERGED_LIB} ${RUST_EXTRACT_DIR}/*.o $<TARGET_OBJECTS:driver>"
-  COMMAND ${CMAKE_COMMAND} -E rm -rf "${RUST_EXTRACT_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E copy "${RUST_LIB}" "${MERGED_LIB}"
   DEPENDS rust_engine driver
-  COMMENT "Merging Rust + Driver objects into libPeelFuzz.a"
+  COMMENT "Creating libPeelFuzz.a (Rust Engine + header-only Driver)"
 )
 
 add_custom_target(PeelFuzz ALL DEPENDS ${MERGED_LIB})
