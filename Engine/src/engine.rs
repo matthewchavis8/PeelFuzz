@@ -17,7 +17,6 @@ use crate::config::SchedulerType;
 ///         .crash_dir("./my_crashes")
 ///         .seed_count(16)
 ///         .core_count(4)
-///         .use_tui()
 ///         .run();
 /// }
 /// ```
@@ -31,7 +30,6 @@ where
     crash_dir: String,
     seed_count: usize,
     core_count: usize,
-    tui: bool,
 }
 
 impl<H> PeelFuzzer<H>
@@ -46,8 +44,9 @@ where
             timeout: Duration::from_secs(1),
             crash_dir: "./crashes".to_string(),
             seed_count: 8,
-            core_count: 1,
-            tui: false,
+            core_count: std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1),
         }
     }
 
@@ -81,12 +80,6 @@ where
         self
     }
 
-    /// Enable the TUI monitor (requires `tui` feature).
-    pub fn use_tui(mut self) -> Self {
-        self.tui = true;
-        self
-    }
-
     /// Run the fuzzer. This consumes the builder and starts the fuzz loop.
     ///
     /// # Safety
@@ -100,65 +93,25 @@ where
             crash_dir,
             seed_count,
             core_count,
-            tui,
         } = self;
 
         // Choose multicore vs single-core path
         if core_count > 1 {
             #[cfg(feature = "fork")]
             {
-                match (scheduler_type, tui) {
-                    (SchedulerType::Queue, false) => {
+                match scheduler_type {
+                    SchedulerType::Queue => {
                         let mon = crate::monitors::multi_monitor();
                         run_engine_multicore!(harness, mon, crash_dir, seed_count, timeout, core_count, |_s, _o| {
                             libafl::schedulers::QueueScheduler::new()
                         });
                     }
-                    (SchedulerType::Weighted, false) => {
+                    SchedulerType::Weighted => {
                         let mon = crate::monitors::multi_monitor();
                         run_engine_multicore!(
                             harness, mon, crash_dir, seed_count, timeout, core_count,
-                            |state, observer| crate::schedulers::StdWeightedScheduler::new(
-                                &mut state, &observer
-                            )
+                            |state, observer| crate::schedulers::StdWeightedScheduler::new(&mut state, &observer)
                         );
-                    }
-                    #[cfg(feature = "tui")]
-                    (SchedulerType::Queue, true) => {
-                        let mon = crate::monitors::tui_monitor();
-                        run_engine_multicore!(harness, mon, crash_dir, seed_count, timeout, core_count, |_s, _o| {
-                            libafl::schedulers::QueueScheduler::new()
-                        });
-                    }
-                    #[cfg(feature = "tui")]
-                    (SchedulerType::Weighted, true) => {
-                        let mon = crate::monitors::tui_monitor();
-                        run_engine_multicore!(
-                            harness, mon, crash_dir, seed_count, timeout, core_count,
-                            |state, observer| crate::schedulers::StdWeightedScheduler::new(
-                                &mut state, &observer
-                            )
-                        );
-                    }
-                    #[cfg(not(feature = "tui"))]
-                    (_, true) => {
-                        eprintln!("TUI requested but `tui` feature not compiled. Falling back to console.");
-                        let mon = crate::monitors::multi_monitor();
-                        match scheduler_type {
-                            SchedulerType::Queue => {
-                                run_engine_multicore!(harness, mon, crash_dir, seed_count, timeout, core_count, |_s, _o| {
-                                    libafl::schedulers::QueueScheduler::new()
-                                });
-                            }
-                            SchedulerType::Weighted => {
-                                run_engine_multicore!(
-                                    harness, mon, crash_dir, seed_count, timeout, core_count,
-                                    |state, observer| crate::schedulers::StdWeightedScheduler::new(
-                                        &mut state, &observer
-                                    )
-                                );
-                            }
-                        }
                     }
                 }
             }
@@ -166,11 +119,11 @@ where
             {
                 eprintln!("Multi-core requested but `fork` feature not compiled. Falling back to single-core.");
                 // Fall through to single-core below
-                unsafe { single_core_run(&mut harness, scheduler_type, timeout, crash_dir, seed_count, tui) };
+                unsafe { single_core_run(&mut harness, scheduler_type, timeout, crash_dir, seed_count) };
                 return;
             }
         } else {
-            unsafe { single_core_run(&mut harness, scheduler_type, timeout, crash_dir, seed_count, tui) };
+            unsafe { single_core_run(&mut harness, scheduler_type, timeout, crash_dir, seed_count) };
         }
     }
 }
@@ -181,74 +134,22 @@ unsafe fn single_core_run<H>(
     timeout: Duration,
     crash_dir: String,
     seed_count: usize,
-    tui: bool,
 ) where
     H: FnMut(&BytesInput) -> ExitKind,
 {
-    match (scheduler_type, tui) {
-        (SchedulerType::Queue, false) => {
+    match scheduler_type {
+        SchedulerType::Queue => {
             let mon = crate::monitors::simple_monitor();
             run_engine!(harness, mon, crash_dir, seed_count, timeout, |_s, _o| {
                 libafl::schedulers::QueueScheduler::new()
             });
         }
-        (SchedulerType::Weighted, false) => {
+        SchedulerType::Weighted => {
             let mon = crate::monitors::simple_monitor();
             run_engine!(
-                harness,
-                mon,
-                crash_dir,
-                seed_count,
-                timeout,
-                |state, observer| crate::schedulers::StdWeightedScheduler::new(
-                    &mut state, &observer
-                )
+                harness, mon, crash_dir, seed_count, timeout,
+                |state, observer| crate::schedulers::StdWeightedScheduler::new(&mut state, &observer)
             );
-        }
-        #[cfg(feature = "tui")]
-        (SchedulerType::Queue, true) => {
-            let mon = crate::monitors::tui_monitor();
-            run_engine!(harness, mon, crash_dir, seed_count, timeout, |_s, _o| {
-                libafl::schedulers::QueueScheduler::new()
-            });
-        }
-        #[cfg(feature = "tui")]
-        (SchedulerType::Weighted, true) => {
-            let mon = crate::monitors::tui_monitor();
-            run_engine!(
-                harness,
-                mon,
-                crash_dir,
-                seed_count,
-                timeout,
-                |state, observer| crate::schedulers::StdWeightedScheduler::new(
-                    &mut state, &observer
-                )
-            );
-        }
-        #[cfg(not(feature = "tui"))]
-        (_, true) => {
-            eprintln!("TUI requested but `tui` feature not compiled. Falling back to console.");
-            let mon = crate::monitors::simple_monitor();
-            match scheduler_type {
-                SchedulerType::Queue => {
-                    run_engine!(harness, mon, crash_dir, seed_count, timeout, |_s, _o| {
-                        libafl::schedulers::QueueScheduler::new()
-                    });
-                }
-                SchedulerType::Weighted => {
-                    run_engine!(
-                        harness,
-                        mon,
-                        crash_dir,
-                        seed_count,
-                        timeout,
-                        |state, observer| crate::schedulers::StdWeightedScheduler::new(
-                            &mut state, &observer
-                        )
-                    );
-                }
-            }
         }
     }
 }

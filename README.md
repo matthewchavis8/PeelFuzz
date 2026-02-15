@@ -61,10 +61,6 @@ cmake --preset=Release
 cmake --build Release
 ```
 
-This produces `Release/libPeelFuzz.a` containing:
-- LibAFL fuzzing logic
-- Coverage instrumentation hooks
-- C ABI entry points
 - C++ driver wrappers
 
 **Note**: The CMake presets provide sanitizers and optimization flags, but the critical `-fsanitize-coverage=trace-pc-guard` flag must be added when compiling your fuzz targets (see Usage section below).
@@ -101,29 +97,6 @@ For full control over the fuzzer, use the `peel_fuzz_run` C API with a `PeelFuzz
 ```cpp
 #include <cstdint>
 #include <cstddef>
-
-// PeelFuzz C ABI types
-extern "C" {
-    enum HarnessType  { ByteSize = 0, String = 1 };
-    enum SchedulerType { Queue = 0, Weighted = 1 };
-
-    struct PeelFuzzConfig {
-        HarnessType    harness_type;
-        const void*    target_fn;
-        SchedulerType  scheduler_type;
-        uint64_t       timeout_ms;   // 0 = default (1000ms)
-        const char*    crash_dir;    // NULL = "./crashes"
-        uint32_t       seed_count;   // 0 = default (8)
-        uint32_t       core_count;   // 0 or 1 = single-core
-        bool           use_tui;
-    };
-
-    void peel_fuzz_run(const PeelFuzzConfig* config);
-}
-
-void my_target(const uint8_t* data, size_t len) {
-    // ... your target code ...
-}
 
 int main() {
     PeelFuzzConfig config = {
@@ -187,6 +160,11 @@ See the `PeelFuzzConfig` struct fields:
 | `seed_count` | `uint32_t` | Number of initial seeds (0 = 8 default) |
 | `core_count` | `uint32_t` | Number of cores (0 or 1 = single-core) |
 | `use_tui` | `bool` | Enable TUI monitor (requires `tui` feature) |
+
+NOTE: target_fn you must use the correct harness type for it 
+
+#### TODO: Need a section for extending the fuzzer 
+like creating your harness for your type then adding it to the config so like for ByteTize, string or any input
 
 ## Cargo Features
 

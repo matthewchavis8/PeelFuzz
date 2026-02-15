@@ -24,16 +24,9 @@ extern "C" {
     uint64_t timeout_ms;      // 0 = default (1000ms)
     const char* crash_dir;    // NULL = "./crashes"
     uint32_t seed_count;      // 0 = default (8)
-    uint32_t core_count;      // 0 = single core
-    bool use_tui;
+    uint32_t core_count;      // 0 = auto-detect (all available cores)
   } PeelFuzzConfig;
 
-  // Main fuzzing entry points
-  typedef void(*CTargetFn)(const uint8_t* data, size_t len);
-  void fuzz_byte_size(CTargetFn target_fn);
+  // Main fuzzing entry point
   void peel_fuzz_run(const PeelFuzzConfig* config);
 }
-
-typedef void(*wrapFn)(int input);
-
-void fuzz_wrap(wrapFn target);
