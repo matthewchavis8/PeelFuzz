@@ -178,6 +178,17 @@ PeelFuzzConfig config = {
 
 ## Architecture
 
+### Component Flowchart
+
+![PeelFuzz Architecture Flowchart](fuzzingArchitecture.png)
+
+### Fuzz Loop Sequence
+<img width="1024" height="791" alt="PeelFuzzFlow drawio" src="https://github.com/user-attachments/assets/962be761-f471-482d-8e10-aa0a7f8bb18f" />
+
+
+
+### Three-Layer Design
+
 PeelFuzz uses a three-layer design to bridge Rust fuzzing to C++ targets:
 
 **Layer 1 - Engine (Rust)**:
