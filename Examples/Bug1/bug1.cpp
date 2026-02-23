@@ -350,12 +350,13 @@ int main() {
     .harness_type = HARNESS_BYTES,
     .target_fn = (void*)parse_packet,
     .scheduler_type = SCHEDULER_QUEUE,  // or SCHEDULER_WEIGHTED
-    .timeout_ms = 1000,
+    .timeout_ms = 500,
+    .timer_sec  = 10,
     .crash_dir = nullptr,  // use default "./crashes"
     .seed_count = 16,      // more seeds for better coverage
     .core_count = 10       // explicit: use all 10 cores
   };
-
+  //
   peel_fuzz_run(&config);
   return 0;
 }

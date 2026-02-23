@@ -2,9 +2,7 @@ CXX=clang++
 # -O2 for better performance (or -O3 for maximum speed)
 # Remove -g for release builds (debug symbols slow things down)
 CXXFLAGS=-std=c++17 -O3 -fno-omit-frame-pointer \
-  -fsanitize=address,undefined \
-  -fsanitize=fuzzer-no-link \
-  -fsanitize-coverage=trace-pc-guard,indirect-calls,trace-cmp
+  -fsanitize-coverage=trace-pc-guard
 
 SRC=bug1.cpp
 EXE=bug1
@@ -18,3 +16,7 @@ default:
 
 run:
 	./$(EXE)
+clean:
+	rm -rf $(EXE) \
+	rm -rf libafl_unix_shmem_server
+

@@ -36,6 +36,7 @@ pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
     unsafe {
         let cfg = &*config;
         let timeout = Duration::from_millis(cfg.timeout_ms_or_default());
+        let fuzz_duration = Duration::from_secs(cfg.timer_sec_or_default());
         let crash_dir = cfg.crash_dir_or_default();
         let seed_count = cfg.seed_count_or_default();
         let core_count = cfg.core_count_or_default();
@@ -48,6 +49,7 @@ pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
                     h,
                     cfg.scheduler_type,
                     timeout,
+                    fuzz_duration,
                     &crash_dir,
                     seed_count,
                     core_count,
@@ -60,6 +62,7 @@ pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
                     h,
                     cfg.scheduler_type,
                     timeout,
+                    fuzz_duration,
                     &crash_dir,
                     seed_count,
                     core_count,
@@ -74,6 +77,7 @@ unsafe fn build_and_run(
     harness: impl FnMut(&libafl::inputs::BytesInput) -> libafl::executors::ExitKind,
     scheduler_type: SchedulerType,
     timeout: Duration,
+    fuzz_duration: Duration,
     crash_dir: &str,
     seed_count: usize,
     core_count: usize,
@@ -81,6 +85,7 @@ unsafe fn build_and_run(
     let builder = PeelFuzzer::new(harness)
         .scheduler(scheduler_type)
         .timeout(timeout)
+        .fuzz_duration(fuzz_duration)
         .crash_dir(crash_dir)
         .seed_count(seed_count)
         .core_count(core_count);

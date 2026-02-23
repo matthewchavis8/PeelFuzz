@@ -21,6 +21,8 @@ pub struct PeelFuzzConfig {
     pub scheduler_type: SchedulerType,
     /// Executor timeout in milliseconds. 0 = default (1000ms).
     pub timeout_ms: u64,
+    /// Runs the fuzzer loop for x amount of seconds
+    pub timer_sec: u64,
     /// Path for crash outputs. Null = "./crashes".
     pub crash_dir: *const i8,
     /// Number of initial seed inputs. 0 = default (8).
@@ -53,6 +55,14 @@ impl PeelFuzzConfig {
                 .unwrap_or(1)
         } else {
             self.core_count as usize
+        }
+    }
+
+    pub fn timer_sec_or_default(&self) -> u64 {
+        if self.timer_sec == 0 {
+            300
+        } else {
+            self.timer_sec
         }
     }
 
