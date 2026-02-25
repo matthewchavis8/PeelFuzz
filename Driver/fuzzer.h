@@ -49,8 +49,12 @@ class PeelFuzz {
       m_config.seed_count     = seedCnt;
       m_config.core_count     = coreCnt;
     }
+    
+    // NO COPYING prevents multiple Fuzzers using the same crash dir and same target
+    PeelFuzz(const PeelFuzz&)             = delete;
+    PeelFuzz& operator=(const PeelFuzz&)  = delete;
 
-    void runFuzzer(uint32_t duration) {
+    void runFuzzer(uint64_t duration) {
       m_config.timer_sec = duration;
       peel_fuzz_run(&m_config);
     }
