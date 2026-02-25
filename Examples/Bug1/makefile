@@ -18,5 +18,6 @@ run:
 	./$(EXE)
 clean:
 	rm -rf $(EXE) \
-	rm -rf libafl_unix_shmem_server
+	rm -rf libafl_unix_shmem_server \
+	rm -rf crashes
 

@@ -345,18 +345,9 @@ void parse_packet(const uint8_t* data, size_t len) {
 }
 
 int main() {
-  // Explicit multi-core configuration for better performance
-  PeelFuzzConfig config = {
-    .harness_type = HARNESS_BYTES,
-    .target_fn = (void*)parse_packet,
-    .scheduler_type = SCHEDULER_QUEUE,  // or SCHEDULER_WEIGHTED
-    .timeout_ms = 500,
-    .timer_sec  = 10,
-    .crash_dir = nullptr,  // use default "./crashes"
-    .seed_count = 16,      // more seeds for better coverage
-    .core_count = 10       // explicit: use all 10 cores
-  };
-  //
-  peel_fuzz_run(&config);
+  PeelFuzz peel(HARNESS_BYTES, (void*)parse_packet, SCHEDULER_QUEUE, 500, 20, 10);
+
+  peel.runFuzzer(60);
+  
   return 0;
 }

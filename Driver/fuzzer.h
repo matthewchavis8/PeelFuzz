@@ -31,3 +31,27 @@ extern "C" {
   // Main fuzzing entry point
   void peel_fuzz_run(const PeelFuzzConfig* config);
 }
+
+// C++ wrapper around rust ABI
+class PeelFuzz {
+  private:
+    PeelFuzzConfig m_config {};
+
+  public:
+    PeelFuzz(
+      HarnessType type, void* targetFn, SchedulerType schedType,
+      uint64_t timeoutMs, uint32_t seedCnt, uint32_t coreCnt = 0
+    ) {
+      m_config.harness_type   = type;
+      m_config.target_fn      = targetFn;
+      m_config.scheduler_type = schedType;
+      m_config.timeout_ms     = timeoutMs;
+      m_config.seed_count     = seedCnt;
+      m_config.core_count     = coreCnt;
+    }
+
+    void runFuzzer(uint32_t duration) {
+      m_config.timer_sec = duration;
+      peel_fuzz_run(&m_config);
+    }
+};
