@@ -347,7 +347,7 @@ void parse_packet(const uint8_t* data, size_t len) {
 int main() {
   PeelFuzz peel(HARNESS_BYTES, (void*)parse_packet, SCHEDULER_QUEUE, 500, 20, 10);
 
-  peel.runFuzzer(60);
+  peel.runFuzzer(FuzzDuration::OneHr);
   
   return 0;
 }

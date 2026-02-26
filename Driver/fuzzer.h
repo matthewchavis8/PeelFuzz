@@ -32,6 +32,23 @@ extern "C" {
   void peel_fuzz_run(const PeelFuzzConfig* config);
 }
 
+enum class FuzzDuration : uint64_t {
+  OneMins       = 60,
+  FiveMins      = OneMins * 5,
+  TenMins       = OneMins * 10,
+  TwentyMins    = OneMins * 20,
+  ThirtyMins    = OneMins * 30,
+  FourtyMins    = OneMins * 40,
+  FiftyMins     = OneMins * 50,
+  
+  OneHr         = OneMins * 60,
+  TwoHr         = OneHr   * 2,
+  FourHr        = OneHr   * 4,
+  EightHr       = OneHr   * 8,
+  SixteenHr     = OneHr   * 16,
+  TwentyFourHr  = OneHr   * 24,
+};
+
 // C++ wrapper around rust ABI
 class PeelFuzz {
   private:
@@ -56,6 +73,11 @@ class PeelFuzz {
 
     void runFuzzer(uint64_t duration) {
       m_config.timer_sec = duration;
+      peel_fuzz_run(&m_config);
+    }
+    
+    void runFuzzer(FuzzDuration duration) {
+      m_config.timer_sec = static_cast<uint64_t>(duration);
       peel_fuzz_run(&m_config);
     }
 };
