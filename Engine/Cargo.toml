@@ -7,9 +7,8 @@ edition = "2024"
 crate-type = ["staticlib"]
 
 [features]
-default = ["std", "fork"]
-std = ["libafl/std", "libafl_bolts/std", "libafl_bolts/serdeany_autoreg"]
-fork = ["std", "libafl/fork"]
+default = ["std"]
+std = ["libafl/std", "libafl/fork", "libafl_bolts/std", "libafl_bolts/serdeany_autoreg"]
 
 [dependencies]
 libafl = { version = "0.15.4", default-features = false }

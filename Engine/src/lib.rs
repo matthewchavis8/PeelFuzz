@@ -1,36 +1,17 @@
-//! PeelFuzz Engine - LibAFL-based fuzzing library for C/C++ targets
-//!
-//! Provides a C ABI for integrating LibAFL fuzzing into native applications,
-//! and a Rust-side `PeelFuzzer` builder for ergonomic configuration.
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod sanitizer_coverage;
-
-#[cfg(feature = "std")]
 pub mod config;
-#[cfg(feature = "std")]
 mod engine;
-#[cfg(feature = "std")]
 mod harness;
-#[cfg(feature = "std")]
 mod monitors;
-#[cfg(feature = "std")]
 mod schedulers;
-#[cfg(feature = "std")]
 pub mod targets;
-
-#[cfg(feature = "std")]
 pub use engine::PeelFuzzer;
-
-#[cfg(feature = "std")]
 use std::time::Duration;
-
-#[cfg(feature = "std")]
 use config::{HarnessType, PeelFuzzConfig, SchedulerType};
 
 /// Main entry point: run the fuzzer with a full config struct.
-#[cfg(feature = "std")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
     unsafe {
@@ -72,7 +53,6 @@ pub unsafe extern "C" fn peel_fuzz_run(config: *const PeelFuzzConfig) {
     }
 }
 
-#[cfg(feature = "std")]
 unsafe fn build_and_run(
     harness: impl FnMut(&libafl::inputs::BytesInput) -> libafl::executors::ExitKind,
     scheduler_type: SchedulerType,

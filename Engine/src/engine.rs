@@ -1,25 +1,9 @@
-/// PeelFuzzer builder — composable, ergonomic fuzzer configuration.
 use std::time::Duration;
-
 use libafl::executors::ExitKind;
 use libafl::inputs::BytesInput;
-
 use crate::config::SchedulerType;
 
 /// Builder for configuring and running a PeelFuzz fuzzing session.
-///
-/// # Example
-/// ```rust,no_run
-/// unsafe {
-///     PeelFuzzer::new(my_harness)
-///         .scheduler(SchedulerType::Weighted)
-///         .timeout(Duration::from_secs(2))
-///         .crash_dir("./my_crashes")
-///         .seed_count(16)
-///         .core_count(4)
-///         .run();
-/// }
-/// ```
 pub struct PeelFuzzer<H>
 where
     H: FnMut(&BytesInput) -> ExitKind,
@@ -89,9 +73,6 @@ where
     }
 
     /// Run the fuzzer. This consumes the builder and starts the fuzz loop.
-    ///
-    /// # Safety
-    /// The harness must be safe to call with arbitrary byte inputs.
     /// Coverage instrumentation pointers must be valid.
     pub unsafe fn run(self) {
         let PeelFuzzer {
@@ -104,171 +85,24 @@ where
             core_count,
         } = self;
 
-        // Choose multicore vs single-core path
-        if core_count > 1 {
-            #[cfg(feature = "fork")]
-            {
-                match scheduler_type {
-                    SchedulerType::Queue => {
-                        let mon = crate::monitors::multi_monitor();
-                        run_engine_multicore!(harness, mon, crash_dir, seed_count, timeout, core_count, fuzz_duration, |_s, _o| {
-                            libafl::schedulers::QueueScheduler::new()
-                        });
-                    }
-                    SchedulerType::Weighted => {
-                        let mon = crate::monitors::multi_monitor();
-                        run_engine_multicore!(
-                            harness, mon, crash_dir, seed_count, timeout, core_count, fuzz_duration,
-                            |state, observer| crate::schedulers::StdWeightedScheduler::new(&mut state, &observer)
-                        );
-                    }
-                }
+        let mon = crate::monitors::multi_monitor();
+        match scheduler_type {
+            SchedulerType::Queue => {
+                run_engine_multicore!(harness, mon, crash_dir, seed_count, timeout, core_count, fuzz_duration, |_s, _o| {
+                    libafl::schedulers::QueueScheduler::new()
+                });
             }
-            #[cfg(not(feature = "fork"))]
-            {
-                eprintln!("Multi-core requested but `fork` feature not compiled. Falling back to single-core.");
-                // Fall through to single-core below
-                unsafe { single_core_run(&mut harness, scheduler_type, timeout, fuzz_duration, crash_dir, seed_count) };
-                return;
+            SchedulerType::Weighted => {
+                run_engine_multicore!(
+                    harness, mon, crash_dir, seed_count, timeout, core_count, fuzz_duration,
+                    |state, observer| crate::schedulers::StdWeightedScheduler::new(&mut state, &observer)
+                );
             }
-        } else {
-            unsafe { single_core_run(&mut harness, scheduler_type, timeout, fuzz_duration, crash_dir, seed_count) };
         }
     }
 }
-
-unsafe fn single_core_run<H>(
-    mut harness: &mut H,
-    scheduler_type: SchedulerType,
-    timeout: Duration,
-    fuzz_duration: Duration,
-    crash_dir: String,
-    seed_count: usize,
-) where
-    H: FnMut(&BytesInput) -> ExitKind,
-{
-    match scheduler_type {
-        SchedulerType::Queue => {
-            let mon = crate::monitors::simple_monitor();
-            run_engine!(harness, mon, crash_dir, seed_count, timeout, fuzz_duration, |_s, _o| {
-                libafl::schedulers::QueueScheduler::new()
-            });
-        }
-        SchedulerType::Weighted => {
-            let mon = crate::monitors::simple_monitor();
-            run_engine!(
-                harness, mon, crash_dir, seed_count, timeout, fuzz_duration,
-                |state, observer| crate::schedulers::StdWeightedScheduler::new(&mut state, &observer)
-            );
-        }
-    }
-}
-
-/// Internal macro that stamps out the full fuzzer body, parameterized by a
-/// scheduler-construction expression that receives `|state, observer|`.
-macro_rules! run_engine {
-    ($harness:expr, $monitor:expr, $crash_dir:expr, $seed_count:expr, $timeout:expr, $fuzz_duration:expr,
-     |$state:ident, $observer:ident| $make_scheduler:expr) => {{
-        use core::num::NonZero;
-        use std::path::PathBuf;
-
-        use libafl::{
-            corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
-            events::SimpleEventManager,
-            feedbacks::{CrashFeedback, EagerOrFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
-            fuzzer::{Fuzzer, StdFuzzer},
-            generators::RandBytesGenerator,
-            mutators::{havoc_mutations::havoc_mutations, scheduled::HavocScheduledMutator},
-            observers::{StdMapObserver, TimeObserver},
-            stages::mutational::StdMutationalStage,
-            state::{HasCorpus, StdState},
-        };
-        use libafl_bolts::{current_nanos, rands::StdRand, tuples::tuple_list};
-
-        use crate::sanitizer_coverage::{MAP_SIZE, SIGNALS_PTR};
-
-        unsafe {
-            if SIGNALS_PTR.is_null() {
-                crate::sanitizer_coverage::init_coverage();
-            }
-
-            let $observer = StdMapObserver::from_mut_ptr("signals", SIGNALS_PTR, MAP_SIZE);
-            let time_observer = TimeObserver::new("time");
-
-            let mut feedback = EagerOrFeedback::new(
-                MaxMapFeedback::new(&$observer),
-                TimeFeedback::new(&time_observer),
-            );
-            // Treat both crashes and timeouts as objectives
-            let mut objective = EagerOrFeedback::new(
-                CrashFeedback::new(),
-                TimeoutFeedback::new(),
-            );
-
-            let mut $state = StdState::new(
-                StdRand::with_seed(current_nanos()),
-                InMemoryCorpus::new(),
-                OnDiskCorpus::new(PathBuf::from($crash_dir)).unwrap(),
-                &mut feedback,
-                &mut objective,
-            )
-            .unwrap();
-
-            let mut mgr = SimpleEventManager::new($monitor);
-            let scheduler = $make_scheduler;
-            let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
-
-            let mut executor = libafl::executors::inprocess::InProcessExecutor::with_timeout(
-                &mut $harness,
-                tuple_list!($observer, time_observer),
-                &mut fuzzer,
-                &mut $state,
-                &mut mgr,
-                $timeout,
-            )
-            .unwrap();
-
-            if $state.corpus().count() == 0 {
-                // Generate seeds at varied sizes for better initial coverage
-                let seed_sizes: [usize; 5] = [4, 16, 32, 64, 128];
-                let seeds_per_size = $seed_count / seed_sizes.len();
-                let remainder = $seed_count % seed_sizes.len();
-
-                for (i, &size) in seed_sizes.iter().enumerate() {
-                    let count = seeds_per_size + if i < remainder { 1 } else { 0 };
-                    if count > 0 {
-                        let mut generator = RandBytesGenerator::new(NonZero::new(size).unwrap());
-                        $state
-                            .generate_initial_inputs(
-                                &mut fuzzer,
-                                &mut executor,
-                                &mut generator,
-                                &mut mgr,
-                                count,
-                            )
-                            .unwrap();
-                    }
-                }
-            }
-
-            let mutator = HavocScheduledMutator::new(havoc_mutations());
-            let mut stages = tuple_list!(StdMutationalStage::new(mutator));
-
-            let deadline = std::time::Instant::now() + $fuzz_duration;
-            loop {
-                if std::time::Instant::now() >= deadline {
-                    break;
-                }
-                let _ = fuzzer.fuzz_one(&mut stages, &mut executor, &mut $state, &mut mgr);
-            }
-        }
-    }};
-}
-
-use run_engine;
 
 /// Multicore macro using LibAFL Launcher with fork-based parallelism.
-#[cfg(feature = "fork")]
 macro_rules! run_engine_multicore {
     ($harness:expr, $monitor:expr, $crash_dir:expr, $seed_count:expr, $timeout:expr, $core_count:expr, $fuzz_duration:expr,
      |$state:ident, $observer:ident| $make_scheduler:expr) => {{
@@ -323,7 +157,6 @@ macro_rules! run_engine_multicore {
                         MaxMapFeedback::new(&$observer),
                         TimeFeedback::new(&time_observer),
                     );
-                    // Treat both crashes and timeouts as objectives
                     let mut objective = EagerOrFeedback::new(
                         CrashFeedback::new(),
                         TimeoutFeedback::new(),
@@ -394,5 +227,4 @@ macro_rules! run_engine_multicore {
     }};
 }
 
-#[cfg(feature = "fork")]
 use run_engine_multicore;
