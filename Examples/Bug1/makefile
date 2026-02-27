@@ -9,7 +9,6 @@ EXE=bug1
 
 PEELFUZZ_LIB=../../Release/libPeelFuzz.a
 
-
 default:
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(EXE) \
 	  $(PEELFUZZ_LIB) -pthread -ldl -lm

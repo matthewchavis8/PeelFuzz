@@ -1,5 +1,8 @@
 /// Configuration types for the PeelFuzz C ABI boundary.
 
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HarnessType {
@@ -50,9 +53,14 @@ impl PeelFuzzConfig {
 
     pub fn core_count_or_default(&self) -> usize {
         if self.core_count == 0 {
-            std::thread::available_parallelism()
-                .map(|n| n.get())
-                .unwrap_or(1)
+            #[cfg(feature = "std")]
+            {
+                std::thread::available_parallelism()
+                    .map(|n| n.get())
+                    .unwrap_or(1)
+            }
+            #[cfg(not(feature = "std"))]
+            { 1 }
         } else {
             self.core_count as usize
         }
@@ -68,10 +76,10 @@ impl PeelFuzzConfig {
 
     pub fn crash_dir_or_default(&self) -> String {
         if self.crash_dir.is_null() {
-            "./crashes".to_string()
+            "./crashes".into()
         } else {
             unsafe {
-                core::ffi::CStr::from_ptr(self.crash_dir)
+                core::ffi::CStr::from_ptr(self.crash_dir.cast())
                     .to_string_lossy()
                     .into_owned()
             }

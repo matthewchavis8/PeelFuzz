@@ -3,6 +3,10 @@ use libafl::executors::ExitKind;
 use libafl::inputs::{BytesInput, HasTargetBytes};
 use libafl_bolts::AsSlice;
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use alloc::vec::Vec;
+
 use crate::sanitizer_coverage::reset_coverage;
 use crate::targets::{CTargetFn, CTargetStringFn};
 

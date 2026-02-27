@@ -1,5 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
+#[cfg(not(feature = "std"))]
+mod allocator;
+
 pub mod sanitizer_coverage;
 pub mod config;
 mod engine;
@@ -8,7 +14,7 @@ mod monitors;
 mod schedulers;
 pub mod targets;
 pub use engine::PeelFuzzer;
-use std::time::Duration;
+use core::time::Duration;
 use config::{HarnessType, PeelFuzzConfig, SchedulerType};
 
 /// Main entry point: run the fuzzer with a full config struct.
@@ -71,4 +77,21 @@ unsafe fn build_and_run(
         .core_count(core_count);
 
     unsafe { builder.run() };
+}
+
+// --- no_std required symbols ---
+
+#[cfg(not(feature = "std"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {}
+}
+
+/// LibAFL requires a time source in no_std mode. This stub returns 0.
+/// Override this symbol with a real hardware timer for your MCU/SoC
+/// (e.g., read a cycle counter or peripheral timer register).
+#[cfg(not(feature = "std"))]
+#[unsafe(no_mangle)]
+pub extern "C" fn external_current_millis() -> u64 {
+    0
 }
