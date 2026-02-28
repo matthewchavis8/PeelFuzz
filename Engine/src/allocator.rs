@@ -5,7 +5,6 @@
 /// LibAFL's internal allocations on baremetal targets.
 ///
 /// If 4 MiB is too small for your target, increase `ARENA_SIZE`.
-
 use core::alloc::GlobalAlloc;
 use talc::{ClaimOnOom, Span, Talc};
 
@@ -15,7 +14,9 @@ static mut ARENA: [u8; ARENA_SIZE] = [0; ARENA_SIZE];
 
 #[global_allocator]
 static ALLOCATOR: Locked = Locked(spin::Mutex::new(unsafe {
-    Talc::new(ClaimOnOom::new(Span::from_array(core::ptr::addr_of!(ARENA) as *mut [u8; ARENA_SIZE])))
+    Talc::new(ClaimOnOom::new(Span::from_array(
+        core::ptr::addr_of!(ARENA) as *mut [u8; ARENA_SIZE],
+    )))
 }));
 
 struct Locked(spin::Mutex<Talc<ClaimOnOom>>);
@@ -29,6 +30,10 @@ unsafe impl GlobalAlloc for Locked {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: core::alloc::Layout) {
-        unsafe { self.0.lock().free(core::ptr::NonNull::new_unchecked(ptr), layout) }
+        unsafe {
+            self.0
+                .lock()
+                .free(core::ptr::NonNull::new_unchecked(ptr), layout)
+        }
     }
 }

@@ -60,7 +60,9 @@ impl PeelFuzzConfig {
                     .unwrap_or(1)
             }
             #[cfg(not(feature = "std"))]
-            { 1 }
+            {
+                1
+            }
         } else {
             self.core_count as usize
         }

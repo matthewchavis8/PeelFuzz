@@ -1,7 +1,7 @@
+use crate::config::SchedulerType;
 use core::time::Duration;
 use libafl::executors::ExitKind;
 use libafl::inputs::BytesInput;
-use crate::config::SchedulerType;
 
 #[cfg(not(feature = "std"))]
 use alloc::string::String;
@@ -11,13 +11,13 @@ pub struct PeelFuzzer<H>
 where
     H: FnMut(&BytesInput) -> ExitKind,
 {
-    harness:        H,
+    harness: H,
     scheduler_type: SchedulerType,
-    timeout:        Duration,
-    fuzz_duration:  Duration,
-    crash_dir:      String,
-    seed_count:     usize,
-    core_count:     usize,
+    timeout: Duration,
+    fuzz_duration: Duration,
+    crash_dir: String,
+    seed_count: usize,
+    core_count: usize,
 }
 
 impl<H> PeelFuzzer<H>
@@ -28,9 +28,15 @@ where
     pub fn new(harness: H) -> Self {
         let core_count = {
             #[cfg(feature = "std")]
-            { std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) }
+            {
+                std::thread::available_parallelism()
+                    .map(|n| n.get())
+                    .unwrap_or(1)
+            }
             #[cfg(not(feature = "std"))]
-            { 1 }
+            {
+                1
+            }
         };
 
         Self {
@@ -96,14 +102,29 @@ where
         let mon = crate::monitors::multi_monitor();
         match scheduler_type {
             SchedulerType::Queue => {
-                run_engine_multicore!(harness, mon, crash_dir, seed_count, timeout, core_count, fuzz_duration, |_s, _o| {
-                    libafl::schedulers::QueueScheduler::new()
-                });
+                run_engine_multicore!(
+                    harness,
+                    mon,
+                    crash_dir,
+                    seed_count,
+                    timeout,
+                    core_count,
+                    fuzz_duration,
+                    |_s, _o| { libafl::schedulers::QueueScheduler::new() }
+                );
             }
             SchedulerType::Weighted => {
                 run_engine_multicore!(
-                    harness, mon, crash_dir, seed_count, timeout, core_count, fuzz_duration,
-                    |state, observer| crate::schedulers::StdWeightedScheduler::new(&mut state, &observer)
+                    harness,
+                    mon,
+                    crash_dir,
+                    seed_count,
+                    timeout,
+                    core_count,
+                    fuzz_duration,
+                    |state, observer| crate::schedulers::StdWeightedScheduler::new(
+                        &mut state, &observer
+                    )
                 );
             }
         }
@@ -127,10 +148,9 @@ where
                 });
             }
             SchedulerType::Weighted => {
-                run_engine_singlecore!(
-                    harness, mon, seed_count,
-                    |state, observer| crate::schedulers::StdWeightedScheduler::new(&mut state, &observer)
-                );
+                run_engine_singlecore!(harness, mon, seed_count, |state, observer| {
+                    crate::schedulers::StdWeightedScheduler::new(&mut state, &observer)
+                });
             }
         }
     }
@@ -149,7 +169,9 @@ macro_rules! run_engine_multicore {
         use libafl::{
             corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
             events::{EventConfig, launcher::Launcher},
-            feedbacks::{CrashFeedback, EagerOrFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
+            feedbacks::{
+                CrashFeedback, EagerOrFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback,
+            },
             fuzzer::{Fuzzer, StdFuzzer},
             generators::RandBytesGenerator,
             mutators::{havoc_mutations::havoc_mutations, scheduled::HavocScheduledMutator},
@@ -158,8 +180,8 @@ macro_rules! run_engine_multicore {
             state::{HasCorpus, StdState},
         };
         use libafl_bolts::{
-            current_nanos,
             core_affinity::Cores,
+            current_nanos,
             rands::StdRand,
             shmem::{ShMemProvider, StdShMemProvider},
             tuples::tuple_list,
@@ -194,10 +216,8 @@ macro_rules! run_engine_multicore {
                         MaxMapFeedback::new(&$observer),
                         TimeFeedback::new(&time_observer),
                     );
-                    let mut objective = EagerOrFeedback::new(
-                        CrashFeedback::new(),
-                        TimeoutFeedback::new(),
-                    );
+                    let mut objective =
+                        EagerOrFeedback::new(CrashFeedback::new(), TimeoutFeedback::new());
 
                     let mut $state = StdState::new(
                         StdRand::with_seed(current_nanos()),
@@ -211,15 +231,16 @@ macro_rules! run_engine_multicore {
                     let scheduler = $make_scheduler;
                     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-                    let mut executor = libafl::executors::inprocess::InProcessExecutor::with_timeout(
-                        &mut $harness,
-                        tuple_list!($observer, time_observer),
-                        &mut fuzzer,
-                        &mut $state,
-                        &mut mgr,
-                        timeout,
-                    )
-                    .unwrap();
+                    let mut executor =
+                        libafl::executors::inprocess::InProcessExecutor::with_timeout(
+                            &mut $harness,
+                            tuple_list!($observer, time_observer),
+                            &mut fuzzer,
+                            &mut $state,
+                            &mut mgr,
+                            timeout,
+                        )
+                        .unwrap();
 
                     if $state.corpus().count() == 0 {
                         let seed_sizes: [usize; 5] = [4, 16, 32, 64, 128];
@@ -229,7 +250,8 @@ macro_rules! run_engine_multicore {
                         for (i, &size) in seed_sizes.iter().enumerate() {
                             let count = seeds_per_size + if i < remainder { 1 } else { 0 };
                             if count > 0 {
-                                let mut generator = RandBytesGenerator::new(NonZero::new(size).unwrap());
+                                let mut generator =
+                                    RandBytesGenerator::new(NonZero::new(size).unwrap());
                                 $state
                                     .generate_initial_inputs(
                                         &mut fuzzer,
@@ -259,7 +281,13 @@ macro_rules! run_engine_multicore {
             })
             .build();
 
-        launcher.launch::<BytesInput, StdState<InMemoryCorpus<BytesInput>, BytesInput, libafl_bolts::rands::StdRand, OnDiskCorpus<BytesInput>>>()
+        launcher
+            .launch::<BytesInput, StdState<
+                InMemoryCorpus<BytesInput>,
+                BytesInput,
+                libafl_bolts::rands::StdRand,
+                OnDiskCorpus<BytesInput>,
+            >>()
             .expect("Failed to launch multicore fuzzer");
     }};
 }
@@ -287,11 +315,7 @@ macro_rules! run_engine_singlecore {
             stages::mutational::StdMutationalStage,
             state::{HasCorpus, StdState},
         };
-        use libafl_bolts::{
-            current_nanos,
-            rands::StdRand,
-            tuples::tuple_list,
-        };
+        use libafl_bolts::{current_nanos, rands::StdRand, tuples::tuple_list};
 
         use crate::sanitizer_coverage::{MAP_SIZE, SIGNALS_PTR};
 
@@ -356,7 +380,8 @@ macro_rules! run_engine_singlecore {
             let mut stages = tuple_list!(StdMutationalStage::new(mutator));
 
             // Runs forever — the host / debugger / watchdog terminates externally.
-            fuzzer.fuzz_loop(&mut stages, &mut executor, &mut $state, &mut mgr)
+            fuzzer
+                .fuzz_loop(&mut stages, &mut executor, &mut $state, &mut mgr)
                 .expect("fuzz_loop failed");
         }
     }};

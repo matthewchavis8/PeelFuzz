@@ -6,16 +6,16 @@ extern crate alloc;
 #[cfg(not(feature = "std"))]
 mod allocator;
 
-pub mod sanitizer_coverage;
 pub mod config;
 mod engine;
 mod harness;
 mod monitors;
+pub mod sanitizer_coverage;
 mod schedulers;
 pub mod targets;
-pub use engine::PeelFuzzer;
-use core::time::Duration;
 use config::{HarnessType, PeelFuzzConfig, SchedulerType};
+use core::time::Duration;
+pub use engine::PeelFuzzer;
 
 /// Main entry point: run the fuzzer with a full config struct.
 #[unsafe(no_mangle)]
