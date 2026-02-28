@@ -18,26 +18,10 @@ The framework uses function pointers to route fuzzer-generated inputs to arbitra
 
 ```
 PeelFuzz/
-├── Engine/             # Layer 1: Rust/LibAFL fuzzing engine
-│   ├── src/
-│   │   ├── lib.rs                    # Main entry point and C ABI exports
-│   │   ├── engine.rs                 # PeelFuzzer builder and macro implementations
-│   │   ├── config.rs                 # Configuration types for C ABI boundary
-│   │   ├── harness.rs                # Harness wrappers for different input types
-│   │   ├── targets.rs                # C function pointer types
-│   │   ├── monitors.rs               # Monitor creation and statistics output
-│   │   ├── schedulers.rs             # Scheduler re-exports
-│   │   └── sanitizer_coverage.rs     # Coverage hook implementations
-│   └── Cargo.toml
-├── Driver/             # Layer 2: C++ API wrapper (header-only)
-│   ├── fuzzer.h                      # C API interface (what developers use)
-│   └── CMakeLists.txt
-├── Examples/           # Layer 3: Your fuzz targets
-│   └── Bug1/
-│       ├── bug1.cpp                  # Multi-gate fuzzing target example
-│       └── makefile                  # Build configuration with coverage flags
-└── Docs/
-    └── VISION.md                     # Detailed architecture documentation
+├── Engine/             # Rust/LibAFL fuzzing engine (std and no_std builds)
+├── Driver/             # Header-only C++ API wrapper for the Engine's C ABI
+├── Examples/           # Example fuzz targets demonstrating usage
+└── Docs/               # Architecture documentation and roadmap
 ```
 
 ## Prerequisites
@@ -230,18 +214,18 @@ For detailed architecture information, including function pointer mechanism and 
 
 ## Advanced Configuration
 
-### Cargo Features
+### Build Modes
 
-The Rust Engine supports optional features configured via `Engine/Cargo.toml`:
+PeelFuzz supports two build modes controlled via Cargo features in `Engine/Cargo.toml`:
 
-| Feature | Default | Description |
-|---------|---------|-------------|
-| `std` | Yes | Standard library support (required for most use cases) |
-| `fork` | Yes | Enables multi-core fuzzing (Unix/Linux only, **required for multicore**) |
+| Mode | Build Command | Description |
+|------|---------------|-------------|
+| `std` (default) | `cargo build --release` | Full standard library support with multicore fuzzing, filesystem crash output, and automatic CPU detection |
+| `no_std` (baremetal) | `cargo +nightly build --release --no-default-features -Zbuild-std=core,alloc --target <target-triple>` | Single-core fuzzing for embedded/bare-metal targets with in-memory corpus and custom allocator |
 
-**Note**: The `fork` feature is enabled by default, so multicore fuzzing works out of the box. Disable it only for single-core embedded/bare-metal targets.
+**std mode** is the default and includes multicore fuzzing out of the box. Use `no_std` mode only when targeting environments without an OS (e.g., bare-metal firmware, kernel code).
 
-To modify features, edit `Engine/Cargo.toml` and rebuild.
+See `Engine/makefile` for build shortcuts.
 
 ## Troubleshooting
 
@@ -259,7 +243,7 @@ To modify features, edit `Engine/Cargo.toml` and rebuild.
 
 **Issue**: Fuzzer runs in single-core mode instead of multicore
 
-**Solution**: Check that the `fork` feature is enabled in `Engine/Cargo.toml` (it is by default) and rebuild. Multicore requires Unix/Linux. On macOS/BSD, you may need to adjust system limits for shared memory segments. Set `core_count = 0` in your config to auto-detect cores.
+**Solution**: Multicore is automatic when building with the default `std` feature. Ensure you are not building with `--no-default-features` (which enables `no_std` single-core mode). Multicore requires Unix/Linux. On macOS/BSD, you may need to adjust system limits for shared memory segments. Set `core_count = 0` in your config to auto-detect cores.
 
 ## Contributing
 
